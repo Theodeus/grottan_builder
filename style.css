@@ -1,0 +1,1799 @@
+@import url('https://fonts.googleapis.com/css2?family=Agency+FB:wght@700&family=Roboto:wght@300;400;500;700&display=swap');
+
+:root {
+    --bg-dark: #121212;
+    --bg-sidebar: #1e1e1e;
+    --bg-card: #252525;
+    --bg-table: #303030;
+    --accent: #d4a017;
+    /* Gold */
+    --accent-hover: #ffd700;
+    --text-primary: #ffffff;
+    --text-secondary: #b0b0b0;
+    --border-color: #333;
+    --font-heading: 'Agency FB', sans-serif;
+    /* Mocking the sci-fi look */
+    --font-body: 'Roboto', sans-serif;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background-color: var(--bg-dark);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    height: 100vh;
+    overflow: hidden;
+}
+
+a {
+    color: #ffd700;
+    /* Matching accent gold color */
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+a:hover {
+    color: #ffffff;
+    text-decoration: underline;
+}
+
+.app-container {
+    display: flex;
+    height: 100vh;
+}
+
+/* Sidebar */
+.sidebar {
+    width: 350px;
+    background-color: var(--bg-sidebar);
+    border-right: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    flex-shrink: 0;
+    /* Prevent shrinking */
+}
+
+.logo h1 {
+    font-family: var(--font-heading);
+    color: var(--accent);
+    font-size: 2.5rem;
+    margin-bottom: 20px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    text-shadow: 0 0 10px rgba(212, 160, 23, 0.3);
+}
+
+.sidebar-tabs {
+    display: flex;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #333;
+}
+
+.sidebar-tabs button {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    padding: 10px;
+    cursor: pointer;
+    font-family: var(--font-heading);
+    font-size: 1.2rem;
+    text-transform: uppercase;
+    transition: color 0.2s, border 0.2s;
+    border-bottom: 2px solid transparent;
+}
+
+.sidebar-tabs button.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+}
+
+.sidebar-tabs button:hover {
+    color: white;
+}
+
+#view-units,
+#view-army {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    overflow: hidden;
+    /* container for list */
+}
+
+.search-bar input {
+    width: 100%;
+    padding: 10px;
+    background-color: #333;
+    border: 1px solid #444;
+    color: white;
+    border-radius: 4px;
+    margin-bottom: 20px;
+    font-size: 1rem;
+}
+
+.search-bar input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.army-summary {
+    padding: 15px;
+    background: #2a2a2a;
+    border-radius: 4px;
+    margin-bottom: 15px;
+    text-align: center;
+    border: 1px solid var(--accent);
+}
+
+.total-points {
+    font-family: var(--font-heading);
+    font-size: 1.5rem;
+    color: white;
+}
+
+.total-points span {
+    color: var(--accent);
+}
+
+.army-item-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 5px;
+}
+
+.btn-remove {
+    background: transparent;
+    border: 1px solid #ff4444;
+    color: #ff4444;
+    padding: 2px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.8rem;
+}
+
+.btn-remove:hover {
+    background: #ff4444;
+    color: white;
+}
+
+.unit-list {
+    list-style: none;
+    overflow-y: auto;
+    flex-grow: 1;
+}
+
+.unit-list li {
+    padding: 10px 15px;
+    cursor: pointer;
+    border-radius: 4px;
+    margin-bottom: 5px;
+    transition: background 0.2s, color 0.2s;
+    font-size: 0.95rem;
+}
+
+.unit-list li:hover {
+    background-color: #333;
+}
+
+.unit-list li.active {
+    background-color: var(--accent);
+    color: #000;
+    font-weight: bold;
+}
+
+.loading {
+    color: var(--text-secondary);
+    font-style: italic;
+    text-align: center;
+    margin-top: 20px;
+}
+
+/* Main Content */
+.main-content {
+    flex-grow: 1;
+    padding: 40px;
+    overflow-y: auto;
+    background: radial-gradient(circle at center, #1a1a1a 0%, #121212 100%);
+}
+
+.placeholder-message {
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: var(--text-secondary);
+    font-size: 1.5rem;
+    opacity: 0.5;
+}
+
+/* Datasheet Styles */
+.datasheet {
+    max-width: 900px;
+    margin: 0 auto;
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 30px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    position: relative;
+    overflow: hidden;
+}
+
+.datasheet::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 4px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+}
+
+.ds-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 2px solid var(--border-color);
+    padding-bottom: 20px;
+    margin-bottom: 30px;
+}
+
+.ds-header h2 {
+    font-family: var(--font-heading);
+    font-size: 2rem;
+    color: white;
+    text-transform: uppercase;
+}
+
+.ds-keywords {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    line-height: 1.4;
+}
+
+.base-size {
+    font-size: 1rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-left: 10px;
+    vertical-align: middle;
+}
+
+/* Stats Grid */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
+    gap: 10px;
+    margin-bottom: 30px;
+    background: #1a1a1a;
+    padding: 15px;
+    border-radius: 6px;
+    border: 1px solid #333;
+}
+
+.stat-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+.stat-label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    margin-bottom: 5px;
+}
+
+.stat-value {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: var(--accent);
+    font-family: var(--font-heading);
+}
+
+/* Points Section */
+.points-list {
+    background: #1a1a1a;
+    padding: 0 15px;
+    border-radius: 6px;
+    border: 1px solid #333;
+    margin-bottom: 30px;
+}
+
+.points-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid #333;
+}
+
+.points-row:last-child {
+    border-bottom: none;
+}
+
+.points-desc {
+    color: var(--text-primary);
+    font-weight: bold;
+}
+
+.points-cost {
+    color: var(--accent);
+    font-family: var(--font-heading);
+    font-size: 1.2rem;
+}
+
+/* Wargear Section */
+.wargear-list {
+    background: #1a1a1a;
+    padding: 0 15px;
+    border-radius: 6px;
+    border: 1px solid #333;
+    margin-bottom: 30px;
+}
+
+.wargear-option {
+    padding: 8px 0;
+    border-bottom: 1px solid #333;
+}
+
+.wargear-option:last-child {
+    border-bottom: none;
+}
+
+.wargear-option label {
+    display: flex;
+    align-items: flex-start;
+    cursor: pointer;
+}
+
+.wargear-check {
+    margin-right: 10px;
+    margin-top: 4px;
+    accent-color: var(--accent);
+}
+
+.wargear-text {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+/* Play View Styles */
+.play-card {
+    background: #111;
+    border: 1px solid var(--accent);
+    /* distinct border */
+}
+
+.play-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 2px solid var(--accent);
+    padding-bottom: 20px;
+    margin-bottom: 20px;
+}
+
+.play-points {
+    font-family: var(--font-heading);
+    font-size: 1.5rem;
+    color: var(--accent);
+}
+
+.play-section {
+    margin-bottom: 25px;
+}
+
+.play-section h3 {
+    font-family: var(--font-heading);
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    font-size: 1.1rem;
+    border-bottom: 1px solid #333;
+    padding-bottom: 8px;
+    margin-bottom: 15px;
+}
+
+.play-enhancement {
+    background: rgba(229, 175, 50, 0.05);
+    border: 1px solid rgba(229, 175, 50, 0.2);
+    padding: 15px;
+    border-radius: 6px;
+    margin-bottom: 10px;
+}
+
+.enh-header {
+    font-weight: bold;
+    color: var(--accent);
+    margin-bottom: 5px;
+    display: flex;
+    justify-content: space-between;
+}
+
+.enh-points {
+    color: var(--text-secondary);
+    font-size: 0.9em;
+}
+
+.enh-desc {
+    color: var(--text-primary);
+    line-height: 1.5;
+    font-size: 0.95rem;
+}
+
+.army-unit-wargear {
+    margin-top: 5px;
+    padding-left: 10px;
+    border-left: 2px solid #444;
+}
+
+.wargear-item {
+    font-size: 0.8rem;
+    color: #aaa;
+    margin-bottom: 2px;
+}
+
+/* Enhancements */
+.enhancement-check {
+    margin: 4px 8px;
+}
+
+
+/* Sections */
+.section-title {
+    font-family: var(--font-heading);
+    font-size: 1.5rem;
+    color: white;
+    margin-bottom: 15px;
+    border-left: 4px solid var(--accent);
+    padding-left: 10px;
+    text-transform: uppercase;
+}
+
+.weapons-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 30px;
+}
+
+.weapons-table th,
+.weapons-table td {
+    padding: 5px;
+    text-align: center;
+    border-bottom: 1px solid #333;
+}
+
+.weapons-table th:first-child,
+.weapons-table td:first-child {
+    text-align: left;
+}
+
+.weapons-table tr:nth-child(odd) {
+    background-color: var(--bg-table);
+}
+
+.weapons-table th {
+    background-color: #1a1a1a;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+}
+
+.weapons-table td {
+    font-size: 0.9rem;
+}
+
+.weapon-name {
+    font-weight: bold;
+    color: white;
+}
+
+.weapon-keywords {
+    font-size: 0.75rem;
+    color: #888;
+    margin-top: 2px;
+    font-style: italic;
+}
+
+.abilities-list {
+    display: grid;
+    gap: 15px;
+}
+
+.ability-card {
+    background-color: #2a2a2a;
+    padding: 15px;
+    border-radius: 4px;
+    border: 1px solid #333;
+}
+
+.ability-name {
+    color: var(--accent);
+    font-weight: bold;
+    margin-bottom: 5px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 1.1rem;
+}
+
+.ability-tag {
+    font-size: 0.7rem;
+    color: #fff;
+    background: #333;
+    padding: 2px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    margin-left: 10px;
+    font-weight: normal;
+}
+
+.ability-desc {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+/* Ability Tags */
+.ability-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    color: #fff;
+    background: #444;
+    border: 1px solid #555;
+    white-space: nowrap;
+}
+
+.ability-tag.core {
+    background: #2b4c6e;
+    /* Muted Blue */
+    border-color: #3e6b99;
+}
+
+.ability-tag.faction {
+    background: #6e2b2b;
+    /* Muted Red */
+    border-color: #993e3e;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #121212;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #333;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* Landing Page Styles */
+.landing-container {
+    width: 100%;
+    /* Full viewport scrolling */
+    height: 100vh;
+    overflow-y: auto;
+    color: white;
+}
+
+.landing-header,
+.landing-content {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 20px;
+}
+
+.landing-header {
+    text-align: center;
+    margin-bottom: 60px;
+    padding-top: 60px;
+}
+
+
+.landing-header h1 {
+    font-family: var(--font-heading);
+    font-size: 5rem;
+    color: var(--accent);
+    text-shadow: 0 0 20px rgba(212, 160, 23, 0.3);
+    text-transform: uppercase;
+    letter-spacing: 4px;
+    margin-bottom: 10px;
+}
+
+.landing-header p {
+    color: var(--text-secondary);
+    font-size: 1.2rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+}
+
+/* Play Mode Cards */
+.play-card {
+    background: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+}
+
+.play-ability-header {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    list-style: none;
+    padding: 5px 0;
+    user-select: none;
+}
+
+.play-ability-header::-webkit-details-marker {
+    display: none;
+}
+
+.play-ability-header::before {
+    content: '▶';
+    font-size: 0.8em;
+    margin-right: 8px;
+    transition: transform 0.2s ease;
+    display: inline-block;
+    color: var(--accent);
+    line-height: 1;
+}
+
+details[open]>.play-ability-header::before {
+    transform: rotate(90deg);
+}
+
+.play-ability-header .ability-name {
+    margin-bottom: 0;
+    /* Remove existing margin to align with arrow */
+}
+
+/* Lists Section */
+.lists-section {
+    background: #1e1e1e;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 30px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    border-bottom: 1px solid #333;
+    padding-bottom: 20px;
+}
+
+.section-header h2 {
+    font-family: var(--font-heading);
+    color: white;
+    font-size: 2rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* Primary Button */
+.btn-primary {
+    background-color: var(--accent);
+    color: #121212;
+    border: none;
+    padding: 10px 20px;
+    font-family: var(--font-heading);
+    font-size: 1.1rem;
+    cursor: pointer;
+    text-transform: uppercase;
+    font-weight: bold;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.btn-primary:hover {
+    background-color: var(--accent-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(212, 160, 23, 0.4);
+}
+
+.btn-secondary {
+    background-color: transparent;
+    color: var(--text-secondary);
+    border: 1px solid #444;
+    padding: 10px 20px;
+    cursor: pointer;
+    border-radius: 4px;
+    text-transform: uppercase;
+    font-weight: bold;
+    font-family: var(--font-heading);
+    font-size: 1.1rem;
+    transition: all 0.2s;
+}
+
+.btn-secondary:hover {
+    border-color: #666;
+    color: white;
+}
+
+/* Lists Grid */
+.lists-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+}
+
+.list-card {
+    background: #252525;
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.list-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-4px);
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.4);
+}
+
+.list-card h3 {
+    color: white;
+    font-family: var(--font-heading);
+    font-size: 1.5rem;
+    margin-bottom: 5px;
+}
+
+.list-info {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    margin-bottom: 20px;
+    font-family: monospace;
+}
+
+.list-footer {
+    margin-top: auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid #333;
+    padding-top: 15px;
+}
+
+.list-points {
+    color: var(--accent);
+    font-weight: bold;
+    font-family: var(--font-heading);
+    font-size: 1.2rem;
+}
+
+.btn-icon {
+    background: transparent;
+    border: 1px solid transparent;
+    color: #888;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: all 0.2s;
+    font-size: 0.9rem;
+}
+
+.btn-icon:hover {
+    color: #ff4444;
+    border-color: #ff4444;
+}
+
+.empty-state {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 40px;
+    color: var(--text-secondary);
+    font-style: italic;
+    background: #2a2a2a;
+    border-radius: 6px;
+    border: 1px dashed #444;
+}
+
+/* Modal */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(4px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+    z-index: 1000;
+}
+
+.modal {
+    background: #1e1e1e;
+    border: 1px solid var(--accent);
+    padding: 30px;
+    border-radius: 8px;
+    width: 100%;
+    max-width: 500px;
+    box-shadow: 0 0 50px rgba(0, 0, 0, 0.7);
+    display: flex;
+    flex-direction: column;
+}
+
+.wahapedia-modal {
+    max-width: 95vw;
+    height: 90vh;
+    padding: 0;
+    overflow: hidden;
+}
+
+.wahapedia-modal .modal-header {
+    padding: 15px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #333;
+    background: #1a1a1a;
+}
+
+.wahapedia-modal h3 {
+    margin: 0;
+    font-size: 1.5rem;
+}
+
+.iframe-container {
+    flex-grow: 1;
+    width: 100%;
+    height: 100%;
+    background: white;
+    /* Wahapedia is white-ish */
+}
+
+.iframe-container iframe {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.modal h3 {
+    font-family: var(--font-heading);
+    font-size: 2rem;
+    color: var(--accent);
+    margin-bottom: 25px;
+    text-transform: uppercase;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.form-group input[type="text"],
+.form-group select {
+    width: 100%;
+    padding: 12px;
+    background: #2a2a2a;
+    border: 1px solid #444;
+    color: white;
+    border-radius: 4px;
+    font-size: 1rem;
+    font-family: var(--font-body);
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.checkbox-group {
+    background: #2a2a2a;
+    padding: 10px;
+    border-radius: 4px;
+    border: 1px solid #333;
+}
+
+.checkbox-group input[type="checkbox"] {
+    accent-color: var(--accent);
+    transform: scale(1.2);
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 15px;
+    margin-top: 30px;
+}
+
+/* Button Styles */
+.btn-text {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: color 0.2s;
+    font-weight: bold;
+    font-family: var(--font-heading);
+    letter-spacing: 1px;
+}
+
+.btn-text:hover {
+    color: var(--accent);
+}
+
+.btn-delete-list {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: transparent;
+    border: none;
+    color: #444;
+    font-size: 1.5rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 5px;
+    transition: color 0.2s;
+    border-radius: 4px;
+}
+
+.btn-delete-list:hover {
+    color: #ff4444;
+}
+
+.btn-rename-list {
+    position: absolute;
+    top: 10px;
+    right: 70px;
+    background: transparent;
+    border: none;
+    color: #444;
+    font-size: 1.2rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 5px;
+    transition: color 0.2s;
+    border-radius: 4px;
+}
+
+.btn-rename-list:hover {
+    color: var(--accent);
+}
+
+.btn-duplicate-list {
+    position: absolute;
+    top: 10px;
+    right: 40px;
+    /* Positioned to the left of the delete button */
+    background: transparent;
+    border: none;
+    color: #444;
+    font-size: 1.2rem;
+    /* Slightly smaller than the X */
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 5px;
+    transition: color 0.2s;
+    border-radius: 4px;
+}
+
+.btn-duplicate-list:hover {
+    color: var(--accent);
+}
+
+/* Fix List Card Layout */
+.list-card {
+    /* Existing styles are fine, but ensure relative positioning for the delete button */
+    position: relative;
+    padding-top: 30px;
+    /* Make room for delete button */
+}
+
+.list-name {
+    font-family: var(--font-heading);
+    font-size: 1.5rem;
+    color: white;
+    margin-bottom: 5px;
+}
+
+.list-faction {
+    color: var(--accent);
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    margin-bottom: 15px;
+}
+
+.list-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    margin-top: auto;
+    border-top: 1px solid #333;
+    padding-top: 10px;
+}
+
+/* Print Styling */
+@media print {
+
+    /* Hide everything by default */
+    body>* {
+        display: none !important;
+    }
+
+    /* Show only the print container */
+    #print-container {
+        display: block !important;
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        background: white;
+        color: black;
+        font-family: 'Helvetica Neue', Arial, sans-serif;
+        /* Cleaner font for print */
+        line-height: 1.3;
+    }
+
+    /* Print Container Children should be visible & natural */
+    #print-container * {
+        visibility: visible;
+    }
+
+    #print-container span,
+    #print-container strong,
+    #print-container em,
+    #print-container b,
+    #print-container i,
+    #print-container a {
+        display: inline !important;
+    }
+
+    /* Reset Styles for Print readability */
+    .print-header {
+        text-align: center;
+        margin-bottom: 20px;
+        padding-bottom: 10px;
+        border-bottom: 2px solid #000;
+        display: block !important;
+    }
+
+    .print-header h1 {
+        margin: 0;
+        font-size: 20pt;
+        /* Slightly smaller title */
+        color: #000;
+        text-transform: uppercase;
+    }
+
+    .print-meta {
+        font-size: 10pt;
+        color: #444;
+        margin-top: 5px;
+        display: flex !important;
+        justify-content: center;
+        gap: 20px;
+    }
+
+    /* Sections */
+    .print-section {
+        margin-bottom: 20px;
+        /* Tighter spacing */
+        display: block !important;
+    }
+
+    .print-section h2 {
+        border-bottom: 1px solid #000;
+        font-size: 14pt;
+        margin-bottom: 10px;
+        color: #000;
+        text-transform: uppercase;
+        padding-bottom: 2px;
+    }
+
+    /* Condensed Grid */
+    .condensed-grid {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr;
+        /* 2 Column layout */
+        gap: 10px;
+        page-break-inside: avoid;
+    }
+
+    .print-card {
+        border: 1px solid #000;
+        /* Solid black border */
+        border-radius: 2px;
+        padding: 8px;
+        background: #fff;
+        color: #000;
+        font-size: 8pt;
+        /* Compact font */
+        page-break-inside: avoid;
+        display: flex !important;
+        flex-direction: column;
+        box-shadow: none !important;
+    }
+
+    .print-card header {
+        display: flex !important;
+        justify-content: space-between;
+        align-items: baseline;
+        border-bottom: 1px solid #000;
+        margin-bottom: 4px;
+        padding-bottom: 2px;
+    }
+
+    .card-title strong {
+        font-size: 9pt;
+        text-transform: uppercase;
+        margin-right: 5px;
+    }
+
+    /* Stats Row - tabular feel */
+    .stats-row {
+        display: grid !important;
+        grid-template-columns: repeat(7, 1fr);
+        background: #eee;
+        padding: 2px;
+        font-weight: bold;
+        margin-bottom: 5px;
+        border: 1px solid #ccc;
+        text-align: center;
+        white-space: nowrap;
+        /* Prevent wrapping */
+    }
+
+    .stats-row span {
+        font-size: 7.5pt;
+        display: block;
+        overflow: hidden;
+    }
+
+    /* Weapon List in Condensed view */
+    .weapons-list {
+        margin-bottom: 5px;
+    }
+
+    .weapon-row {
+        display: grid !important;
+        grid-template-columns: 2fr 3fr;
+        /* Name vs Stats */
+        border-bottom: 1px dotted #ccc;
+        padding: 2px 0;
+        align-items: baseline;
+    }
+
+    .w-name {
+        font-weight: bold;
+        padding-right: 5px;
+        font-size: 8pt;
+    }
+
+    .w-stats {
+        font-family: monospace;
+        font-size: 7.5pt;
+        text-align: right;
+        white-space: nowrap;
+    }
+
+    /* Page Break */
+    .page-break {
+        page-break-before: always;
+        height: 0;
+        display: block !important;
+    }
+
+    /* Expanded View - Datasheet Style */
+    .print-datasheet {
+        page-break-inside: avoid;
+        margin-bottom: 15px;
+        border: 2px solid #000;
+        /* Thicker border for full cards */
+        padding: 10px;
+        background: #fff;
+        color: #000;
+        display: block !important;
+        font-size: 8pt;
+        /* Reduced base font size */
+    }
+
+    .print-datasheet header {
+        display: flex !important;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 2px solid #000;
+        margin-bottom: 8px;
+        padding-bottom: 4px;
+    }
+
+    .print-datasheet h2 {
+        border: none;
+        /* remove default section h2 border */
+        margin: 0;
+        font-size: 13pt;
+        /* Reduced from 16pt */
+    }
+
+    .print-datasheet .ds-keywords {
+        font-size: 6pt !important;
+        /* Extremely small as requested (~70% reduction from typical 10-12pt) */
+        line-height: 1.1;
+        color: #666 !important;
+    }
+
+    .print-datasheet .play-points {
+        font-size: 9pt !important;
+        /* ~50% reduction from 18pt/1.5rem */
+        color: #444 !important;
+        font-weight: bold;
+    }
+
+    /* Stats Grid reused in Expanded */
+    .print-datasheet .stats-grid {
+        display: grid !important;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 0;
+        /* Remove gap, use borders */
+        margin-bottom: 8px;
+        border: 1px solid #000;
+        background: none !important;
+        padding: 0 !important;
+        width: 100%;
+    }
+
+    .print-datasheet .stat-box {
+        border: 1px solid #000;
+        /* grid lines */
+        border-left: none;
+        padding: 2px;
+        /* reduced padding */
+        text-align: center;
+        display: flex !important;
+        flex-direction: column;
+    }
+
+    .print-datasheet .stat-box:first-child {
+        border-left: 1px solid #000;
+    }
+
+    .print-datasheet .stat-label {
+        font-size: 6.5pt;
+        /* Reduced from 8pt */
+        border-bottom: 1px solid #ccc;
+        margin-bottom: 2px;
+        color: #000;
+    }
+
+    .print-datasheet .stat-value {
+        font-size: 9pt;
+        /* Reduced from 11pt */
+        color: #000 !important;
+    }
+
+    /* Force details open */
+    details {
+        border: none;
+        border-top: 1px solid #ccc;
+        padding: 4px 0;
+        margin-top: 0;
+        display: block !important;
+    }
+
+    details[open]>summary~* {
+        animation: none;
+    }
+
+    summary {
+        font-weight: bold;
+        list-style: none;
+        cursor: text;
+        padding: 3px 0;
+        font-size: 8.5pt;
+        /* Slightly smaller headers */
+    }
+
+    summary::-webkit-details-marker {
+        display: none;
+    }
+
+    /* Tables */
+    table.weapons-table {
+        display: table !important;
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 6.5pt;
+        /* Reduced from 8pt */
+        margin-bottom: 8px;
+    }
+
+    /* Ensure child elements behave like table parts */
+    .weapons-table thead {
+        display: table-header-group !important;
+    }
+
+    .weapons-table tbody {
+        display: table-row-group !important;
+    }
+
+    .weapons-table tr {
+        display: table-row !important;
+    }
+
+    .weapons-table th,
+    .weapons-table td {
+        display: table-cell !important;
+        border: 1px solid #000 !important;
+        padding: 2px;
+        /* reduced padding */
+        text-align: center;
+        /* Default center for stats */
+        color: #000 !important;
+        background: transparent !important;
+    }
+
+    /* First col align left (Name) */
+    .weapons-table th:first-child,
+    .weapons-table td:first-child {
+        text-align: left;
+    }
+
+    .weapons-table th {
+        background: #eee !important;
+        font-weight: bold;
+        text-transform: uppercase;
+    }
+
+    /* Hide unnecessary elements */
+    .play-section h3 {
+        font-size: 8pt;
+        /* Reduced */
+        margin-bottom: 4px;
+        border-bottom: 1px solid #000;
+        color: #000;
+        padding-top: 4px;
+        text-transform: uppercase;
+        font-weight: bold;
+    }
+
+    /* Specific overrides for Strat/Ability text to inherit smaller size */
+    .play-section div,
+    .play-section p,
+    .ability-desc {
+        font-size: 8pt;
+    }
+
+    /* Colors override - Force Black */
+    * {
+        color: #000 !important;
+        background-color: transparent !important;
+        box-shadow: none !important;
+        text-shadow: none !important;
+    }
+}
+
+/* Unit Card Redesign (Army List) */
+.unit-card {
+    background: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 6px;
+    margin-bottom: 15px;
+    padding: 15px;
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.unit-card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 12px;
+}
+
+.header-main h3 {
+    margin: 0 0 4px 0;
+    font-size: 1.1em;
+    color: #fff;
+}
+
+.points-badge {
+    background: #444;
+    color: #fff;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.85em;
+    font-weight: bold;
+    display: inline-block;
+}
+
+.card-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.btn-icon {
+    background: transparent;
+    border: none;
+    color: #666;
+    font-size: 1.2em;
+    cursor: pointer;
+    padding: 0 4px;
+    transition: color 0.2s;
+}
+
+.btn-icon:hover {
+    color: #ff4444;
+}
+
+.unit-stats {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 4px;
+    background: #222;
+    padding: 8px;
+    border-radius: 4px;
+    margin-bottom: 12px;
+}
+
+.stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.stat .label {
+    font-size: 0.65em;
+    color: #888;
+    text-transform: uppercase;
+}
+
+.stat .value {
+    font-size: 0.9em;
+    font-weight: bold;
+    color: #e0e0e0;
+}
+
+.card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.btn-block {
+    width: 100%;
+    padding: 8px;
+    background: #333;
+    border: 1px solid #444;
+    color: #ccc;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.btn-block:hover {
+    background: #444;
+    color: #fff;
+    border-color: #666;
+}
+
+.wargear-preview {
+    font-size: 0.8em;
+    color: #888;
+    font-style: italic;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Unit Card Redesign (Army List) */
+.unit-card {
+    background: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 6px;
+    margin-bottom: 15px;
+    padding: 15px;
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.unit-card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 12px;
+}
+
+.header-main h3 {
+    margin: 0 0 4px 0;
+    font-size: 1.1em;
+    color: #fff;
+}
+
+.points-badge {
+    background: #444;
+    color: #fff;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.85em;
+    font-weight: bold;
+    display: inline-block;
+}
+
+.card-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.btn-icon {
+    background: transparent;
+    border: none;
+    color: #666;
+    font-size: 1.2em;
+    cursor: pointer;
+    padding: 0 4px;
+    transition: color 0.2s;
+}
+
+.btn-icon:hover {
+    color: #ff4444;
+}
+
+.unit-stats {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 4px;
+    background: #222;
+    padding: 8px;
+    border-radius: 4px;
+    margin-bottom: 12px;
+}
+
+.stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.stat .label {
+    font-size: 0.65em;
+    color: #888;
+    text-transform: uppercase;
+}
+
+.stat .value {
+    font-size: 0.9em;
+    font-weight: bold;
+    color: #e0e0e0;
+}
+
+.card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.btn-block {
+    width: 100%;
+    padding: 8px;
+    background: #333;
+    border: 1px solid #444;
+    color: #ccc;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.btn-block:hover {
+    background: #444;
+    color: #fff;
+    border-color: #666;
+}
+
+.wargear-preview {
+    font-size: 0.8em;
+    color: #888;
+    font-style: italic;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Button Styles - Forced Application */
+.attach-btn {
+    background: #333;
+    border: 1px solid #555;
+    color: #ccc;
+    cursor: pointer;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.85em;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s;
+    font-weight: bold;
+}
+
+.attach-btn:hover {
+    background: #444;
+    border-color: var(--accent);
+    color: var(--accent);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+.detach-btn {
+    color: #ff5555;
+    border-color: #552222;
+    background: rgba(255, 68, 68, 0.1);
+}
+
+.detach-btn:hover {
+    color: white;
+    background: #ff4444;
+    border-color: #ff4444;
+}
+
+/* Attached Units Styling */
+.attachment-group {
+    margin-bottom: 5px;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Base Unit in a Group */
+.attachment-group .unit-card:not(.attached-unit) {
+    margin-bottom: 0;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    border-bottom: 1px dashed #444;
+    /* visual separator */
+}
+
+/* The Attached Leader */
+.attachment-group .attached-unit {
+    margin-top: 0;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    border-top: none;
+
+    /* Indentation/Connector Visuals */
+    border-left: 4px solid var(--accent);
+    background: #1e1e1e;
+    /* Slightly different bg? */
+    position: relative;
+    padding-left: 15px;
+    /* Extra space for the border visual */
+}
+
+.attached-label {
+    font-size: 0.7em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 4px;
+    font-weight: bold;
+}
+
+/* --- Toast Notifications --- */
+.toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    pointer-events: none;
+    /* Allow clicks to pass through container */
+}
+
+.toast {
+    background: #333;
+    color: white;
+    padding: 12px 20px;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 250px;
+    border-left: 4px solid #555;
+    opacity: 0;
+    transform: translateY(-20px);
+    animation: toastSlideIn 0.3s forwards;
+    pointer-events: auto;
+    /* Re-enable clicks on toasts */
+}
+
+.toast.success {
+    border-left-color: #4caf50;
+}
+
+.toast.error {
+    border-left-color: #f44336;
+}
+
+.toast.info {
+    border-left-color: var(--accent);
+}
+
+.toast-message {
+    font-size: 0.95rem;
+    flex-grow: 1;
+}
+
+.toast-close {
+    background: transparent;
+    border: none;
+    color: #888;
+    cursor: pointer;
+    font-size: 1.2rem;
+    line-height: 1;
+}
+
+.toast-close:hover {
+    color: white;
+}
+
+@keyframes toastSlideIn {
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes toastFadeOut {
+    to {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+}

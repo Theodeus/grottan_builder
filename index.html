@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Warhammer 40K Army Builder</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* Fix for nested flex scrolling */
+        .unit-list {
+            min-height: 0;
+            /* Critical for firefox/flex shrinking */
+        }
+
+        #stratagems-section {
+            max-height: 40vh;
+            overflow-y: auto;
+            border-top: 1px solid #444;
+            padding-top: 10px;
+            background: #1e1e1e;
+            /* Distinct bg */
+        }
+
+        .stratagems-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 10px;
+            padding-bottom: 20px;
+        }
+
+        .stratagem-card {
+            background: #2a2a2a;
+            border: 1px solid #444;
+            border-radius: 4px;
+            padding: 10px;
+        }
+
+        .stratagem-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+            border-bottom: 1px solid #444;
+            padding-bottom: 4px;
+        }
+
+        .stratagem-name {
+            font-weight: bold;
+            color: #fff;
+            font-size: 0.95em;
+        }
+
+        .stratagem-cp {
+            background: #444;
+            color: #fff;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+
+        .stratagem-type {
+            font-size: 0.75em;
+            color: #aaa;
+            font-style: italic;
+            margin-bottom: 6px;
+        }
+
+        .stratagem-desc {
+            font-size: 0.85em;
+            color: #ccc;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Landing Dashboard -->
+    <div id="view-landing" class="landing-container">
+        <header class="landing-header">
+            <h1>Army Forge</h1>
+            <p>Warhammer 40K Army Builder</p>
+        </header>
+
+        <div class="landing-content">
+            <div class="lists-section">
+                <div class="section-header">
+                    <h2>My Army Lists</h2>
+                    <button id="btn-create-list" class="btn-primary">+ New List</button>
+                </div>
+                <div id="lists-container" class="lists-grid">
+                    <!-- Populated by JS -->
+                    <div class="empty-state">No lists found. Create one to get started!</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Create List Modal -->
+        <div id="modal-create" class="modal-overlay" style="display: none;">
+            <div class="modal">
+                <h3>Create New List</h3>
+                <div class="form-group">
+                    <label>List Name</label>
+                    <input type="text" id="new-list-name" placeholder="e.g. 2000pts Tournament">
+                </div>
+                <div class="form-group">
+                    <label>Faction</label>
+                    <select id="new-list-faction">
+                        <option value="" disabled selected>Loading factions...</option>
+                    </select>
+                </div>
+                <div class="form-group" id="chapter-select-group" style="display: none;">
+                    <label>Chapter</label>
+                    <select id="new-list-chapter">
+                        <option value="">-- No Specific Chapter --</option>
+                    </select>
+                </div>
+                <div class="form-group" id="custom-url-group" style="display: none;">
+                    <label>Wahapedia URL</label>
+                    <input type="text" id="custom-url" placeholder="https://wahapedia.ru/...">
+                </div>
+                <!-- Refresh Data Checkbox -->
+                <div class="form-group checkbox-group" style="display: flex; align-items: center; gap: 10px;">
+                    <input type="checkbox" id="refresh-data" style="width: auto;">
+                    <label for="refresh-data" style="margin: 0; cursor: pointer;">Force Refresh Data (Re-scrape)</label>
+                </div>
+                <div class="modal-actions">
+                    <button id="btn-cancel-create" class="btn-secondary">Cancel</button>
+                    <button id="btn-confirm-create" class="btn-primary">Create Army</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Rename List Modal -->
+        <div id="modal-rename" class="modal-overlay" style="display: none;">
+            <div class="modal">
+                <h3>Rename List</h3>
+                <div class="form-group">
+                    <label>New List Name</label>
+                    <input type="text" id="rename-list-name" placeholder="Enter new name">
+                </div>
+                <!-- Hidden Value to track which list we are renaming -->
+                <input type="hidden" id="rename-list-id">
+                <div class="modal-actions">
+                    <button id="btn-cancel-rename" class="btn-secondary">Cancel</button>
+                    <button id="btn-confirm-rename" class="btn-primary">Save Name</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Builder View -->
+    <div id="view-builder" class="app-container" style="display: none;">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo">
+                <h1 style="cursor: pointer;" onclick="location.reload()">Army Forge</h1>
+                <button id="btn-exit-builder" class="btn-text">← Exit</button>
+            </div>
+
+            <div class="sidebar-tabs">
+                <button id="tab-units" class="active">Units</button>
+                <button id="tab-army">My Army <span id="army-count">(0)</span></button>
+            </div>
+
+            <!-- Unit Search View -->
+            <div id="view-units">
+                <div id="detachment-selector-container"
+                    style="padding: 10px; border-bottom: 1px solid #444; background: #222;">
+                    <!-- Detachment dropdown will be rendered here -->
+                </div>
+                <div class="search-bar" style="display: flex; gap: 5px;">
+                    <input type="text" id="unit-search" placeholder="Search units..." style="flex: 1;">
+                    <input type="number" id="unit-points-filter" placeholder="Max Pts"
+                        style="width: 80px; padding: 5px; background: #222; font-size: 14px; border: 1px solid #444; color: white; border-radius: 4px;">
+                </div>
+                <div
+                    style="padding: 0 0 10px 0; display: flex; gap: 5px; align-items: center; justify-content: space-between; font-size: 0.85em; color: #aaa;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" id="filter-show-legends">
+                        <label for="filter-show-legends" style="cursor: pointer; user-select: none;">Show
+                            Legends</label>
+                    </div>
+                    <select id="unit-sort"
+                        style="background: #222; border: 1px solid #444; color: #ccc; border-radius: 4px; padding: 2px;">
+                        <option value="name">Sort: Name (A-Z)</option>
+                        <option value="points">Sort: Points (Low-High)</option>
+                        <option value="movement">Sort: Movement</option>
+                        <option value="type">Sort: Unit Type</option>
+                    </select>
+                </div>
+
+                <ul id="unit-list" class="unit-list">
+                    <!-- Units will be populated here -->
+                    <li class="loading">Loading units...</li>
+                </ul>
+            </div>
+
+            <!-- Army List View -->
+            <div id="view-army" style="display: none;">
+                <div class="army-summary">
+                    <span class="total-points">Total: <span id="total-points">0</span> pts</span>
+                    <button id="btn-condensed-view" class="btn-text"
+                        style="font-size: 0.8em; margin-left: auto; color: var(--accent); cursor: pointer; background: none; border: 1px solid var(--accent); padding: 2px 8px; border-radius: 4px;">Condensed
+                        View</button>
+                    <button id="btn-print" class="btn-text"
+                        style="font-size: 0.8em; margin-left: 5px; color: #aaa; cursor: pointer; background: none; border: 1px solid #444; padding: 2px 8px; border-radius: 4px;">Print
+                        / PDF</button>
+                </div>
+                <ul id="army-list" class="unit-list">
+                    <li class="no-results">Your army is empty. Add units from the Unit list.</li>
+                </ul>
+            </div>
+        </aside>
+
+        <!-- Main Content (Datasheet Viewer) -->
+        <main class="main-content">
+            <div id="datasheet-container" class="datasheet-container">
+                <div class="placeholder-message">
+                    Select a unit to view its datasheet
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="toast-container" class="toast-container"></div>
+
+    <script src="js/sql-wasm.js"></script>
+    <script src="app.js" type="module"></script>
+</body>
+
+</html>

@@ -1,0 +1,5 @@
+/* Refinement: Continuous Connector Line */
+.attachment-group .unit-card {
+    border-left: 4px solid var(--accent);
+    padding-left: 15px;
+}
