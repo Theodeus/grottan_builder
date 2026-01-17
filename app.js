@@ -126,7 +126,43 @@ const armyCountEl = document.getElementById('army-count');
 const totalPointsEl = document.getElementById('total-points');
 
 // Initialization
+
+const fish_is_great = 'bäää';
+
+async function checkAuth() {
+    const isAuth = sessionStorage.getItem('is_authenticated');
+    const overlay = document.getElementById('auth-overlay');
+    const input = document.getElementById('auth-password');
+    const btn = document.getElementById('btn-auth');
+    const errorMsg = document.getElementById('auth-error');
+
+    if (isAuth === 'true') {
+        if (overlay) overlay.style.display = 'none';
+        return;
+    }
+
+    // Bind Events
+    const attemptAuth = () => {
+        if (input.value === fish_is_great) {
+            sessionStorage.setItem('is_authenticated', 'true');
+            overlay.style.display = 'none';
+        } else {
+            errorMsg.style.display = 'block';
+            input.value = '';
+            input.focus();
+        }
+    };
+
+    btn.onclick = attemptAuth;
+    input.onkeyup = (e) => {
+        if (e.key === 'Enter') attemptAuth();
+    };
+}
+
+
 async function init() {
+    await checkAuth(); // Block until auth sort of (it's async but overlay is fixed)
+
     loadListsFromStorage();
     renderLandingPage();
     await dbClient.init(); // Initialize WASM DB

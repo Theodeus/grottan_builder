@@ -227,6 +227,17 @@
 
     <div id="toast-container" class="toast-container"></div>
 
+    <!-- Auth Overlay -->
+    <div id="auth-overlay" class="auth-overlay">
+        <div class="auth-box">
+            <h2>RESTRICTED ACCESS</h2>
+            <p>Enter Access Code to Proceed</p>
+            <input type="password" id="auth-password" placeholder="Access Code">
+            <button id="btn-auth">ENTER</button>
+            <p id="auth-error" style="color:red; display:none; margin-top:10px;">Access Denied</p>
+        </div>
+    </div>
+
     <script src="js/sql-wasm.js"></script>
     <script src="app.js" type="module"></script>
 </body>
