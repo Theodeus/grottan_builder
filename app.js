@@ -231,6 +231,11 @@ async function init() {
 
 
     createWahapediaListeners();
+
+    // Mobile Back Button
+    document.getElementById('btn-mobile-back').onclick = () => {
+        document.getElementById('main-content').classList.remove('mobile-active');
+    };
 }
 
 function createWahapediaListeners() {
@@ -1005,6 +1010,9 @@ async function selectUnit(id) {
     try {
         const unitData = await dbClient.getUnitDetails(id);
         renderDatasheet(unitData);
+
+        // Show Mobile View
+        document.getElementById('main-content').classList.add('mobile-active');
     } catch (error) {
         console.error('Failed to fetch unit details:', error);
         datasheetContainer.innerHTML = '<div class="error">Error loading datasheet</div>';
@@ -1035,6 +1043,9 @@ async function viewPlayCard(id) {
         // Also ensure we are in the right view mode (not search list)
         // If sidebar is showing 'search', maybe we should switch?
         // But for now, just replacing the datasheet content is enough.
+
+        // Mobile: Show view
+        document.getElementById('main-content').classList.add('mobile-active');
 
     } catch (err) {
         console.error(err);
@@ -2180,9 +2191,11 @@ async function toggleCondensedView() {
     state.condensedView = !state.condensedView;
     if (state.condensedView) {
         await renderCondensedArmy();
+        document.getElementById('main-content').classList.add('mobile-active');
     } else {
         // Show placeholder or nothing
         datasheetContainer.innerHTML = '<div class="placeholder-message">Select a unit to view its datasheet</div>';
+        document.getElementById('main-content').classList.remove('mobile-active');
     }
 }
 
