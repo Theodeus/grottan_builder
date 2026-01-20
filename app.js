@@ -234,8 +234,27 @@ async function init() {
 
     // Mobile Back Button
     document.getElementById('btn-mobile-back').onclick = () => {
-        document.getElementById('main-content').classList.remove('mobile-active');
+        // Instead of manually removing class, we go back in history if possible
+        if (history.state && history.state.view === 'details') {
+            history.back();
+        } else {
+            document.getElementById('main-content').classList.remove('mobile-active');
+        }
     };
+
+    // History API Handler
+    window.onpopstate = (event) => {
+        const content = document.getElementById('main-content');
+        if (event.state && event.state.view === 'details') {
+            content.classList.add('mobile-active');
+        } else {
+            // If we pop back to 'list' or null, hide the details
+            content.classList.remove('mobile-active');
+        }
+    };
+
+    // Initialize base state
+    history.replaceState({ view: 'list' }, '', '');
 }
 
 function createWahapediaListeners() {
@@ -1013,6 +1032,7 @@ async function selectUnit(id) {
 
         // Show Mobile View
         document.getElementById('main-content').classList.add('mobile-active');
+        history.pushState({ view: 'details' }, '', '#unit');
     } catch (error) {
         console.error('Failed to fetch unit details:', error);
         datasheetContainer.innerHTML = '<div class="error">Error loading datasheet</div>';
@@ -1046,6 +1066,7 @@ async function viewPlayCard(id) {
 
         // Mobile: Show view
         document.getElementById('main-content').classList.add('mobile-active');
+        history.pushState({ view: 'details' }, '', '#unit');
 
     } catch (err) {
         console.error(err);
@@ -2192,6 +2213,7 @@ async function toggleCondensedView() {
     if (state.condensedView) {
         await renderCondensedArmy();
         document.getElementById('main-content').classList.add('mobile-active');
+        history.pushState({ view: 'details' }, '', '#condensed');
     } else {
         // Show placeholder or nothing
         datasheetContainer.innerHTML = '<div class="placeholder-message">Select a unit to view its datasheet</div>';
