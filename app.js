@@ -1,4 +1,5 @@
 import { dbClient } from './js/db_client.js';
+import { calculateArmyMatchups } from './mathhammer.js';
 
 // const API_BASE = '/api'; // Removed
 
@@ -17,6 +18,8 @@ const state = {
     showLegends: false,
     sortMode: 'name', // 'name', 'points', 'movement', 'type'
     condensedView: false,
+    analysisView: false,
+    analysisUnitIndex: -1, // -1 = Army Total, 0+ = Unit Index
 
     // Shortcut to get active units
     get activeList() {
@@ -182,6 +185,7 @@ async function init() {
 
     // Condensed View Toggle
     document.getElementById('btn-condensed-view').onclick = toggleCondensedView;
+    document.getElementById('btn-analyze-army').onclick = toggleAnalysisView;
     document.getElementById('btn-print').onclick = printArmy;
 
     // Rename Modal Listeners
@@ -1042,8 +1046,9 @@ window.selectUnit = selectUnit;
 
 // New helper to view play card from list
 async function viewPlayCard(id) {
-    if (state.condensedView) {
+    if (state.condensedView || state.analysisView) {
         state.condensedView = false;
+        state.analysisView = false;
         datasheetContainer.innerHTML = '<div class="loading">Loading...</div>';
     }
 
@@ -1565,26 +1570,65 @@ function getActiveWeapons(item, unit) {
     });
 
     // 3. Filter Unit Profiles against Active List
-    return unit.weapons.filter(weapon => {
-        const profileName = weapon.name.toLowerCase();
+    // NEW: Use resolveLoadoutCounts to get exact quantities
 
-        // Check if this profile name matches any active equipment item
-        // Matching rules:
-        // 1. Exact match
-        // 2. Partial match (e.g. "Guardian spear (melee)" should match "guardian spear")
-        return activeEquipment.some(eq => {
-            // Clean equipment name for comparison (remove quantity "2 ")
-            const cleanEq = eq.replace(/^\d+\s+/, '');
-            return profileName.includes(cleanEq) || cleanEq.includes(profileName);
+    const modelCount = parseModelCount(item.description);
+
+    const resolvedCounts = resolveLoadoutCounts(unit, item.wargear, modelCount, item.description);
+
+    const activeProfiles = [];
+
+    unit.weapons.forEach(weapon => {
+        const profileName = normalizeName(weapon.name);
+
+        // Find matching resolved count
+        // Smart Match Strategy (Two-Pass):
+        // Pass 1: Strict / Prefix Match against RAW key (e.g. "Arma Luminis" matches "Arma Luminis - bolt pistol")
+        // Pass 2: Singularize Key Match (e.g. "Sluggas" -> "Slugga" matches "Slugga")
+
+        let matchedKey = Object.keys(resolvedCounts).find(key => {
+            // Pass 1: Raw Match
+            if (profileName === key) return true;
+            if (profileName.startsWith(key)) {
+                const nextChar = profileName[key.length];
+                return [' ', '-', '–', '('].includes(nextChar);
+            }
+            return false;
         });
+
+        // Pass 2: Singular Key Match (Fallback)
+        if (!matchedKey) {
+            matchedKey = Object.keys(resolvedCounts).find(key => {
+                const singularKey = singularize(key);
+                if (key === singularKey) return false; // Optimization: didn't change
+
+                if (profileName === singularKey) return true;
+                if (profileName.startsWith(singularKey)) {
+                    const nextChar = profileName[singularKey.length];
+                    return [' ', '-', '–', '('].includes(nextChar);
+                }
+                return false;
+            });
+        }
+
+        if (matchedKey && resolvedCounts[matchedKey] > 0) {
+            // Clone and add count
+            activeProfiles.push({
+                ...weapon,
+                count: resolvedCounts[matchedKey]
+            });
+        }
     });
+
+    return activeProfiles;
 }
 
 // Play View Logic
 async function selectArmyItem(index) {
-    if (state.condensedView) {
-        // Exit condensed view if checking a specific item via sidebar
+    if (state.condensedView || state.analysisView) {
+        // Exit condensed/analysis view if checking a specific item via sidebar
         state.condensedView = false;
+        state.analysisView = false;
         datasheetContainer.innerHTML = '<div class="loading">Loading...</div>';
     }
     const item = state.activeList.units[index];
@@ -1642,8 +1686,7 @@ function getCondensedUnitHTML(item, unit, options = {}) {
         ? unit.models[0]
         : { m: '-', t: '-', sv: '-', w: '-', ld: '-', oc: '-', invul: '-' };
 
-    const modelCountMatch = item.description.match(/^(\d+)/);
-    const modelCount = modelCountMatch ? modelCountMatch[1] : '?';
+    const modelCount = parseModelCount(item.description);
 
     // Weapons
     const weapons = getActiveWeapons(item, unit);
@@ -1672,14 +1715,14 @@ function getCondensedUnitHTML(item, unit, options = {}) {
         ? `<header>
                 <div class="card-title">
                     <strong>${item.name}</strong>
-                    <span class="model-count">(x${modelCount})</span>
+                    <span class="model-count">(x${parseModelCount(item.description)})</span>
                 </div>
                 <div class="points">${item.points} pts</div>
            </header>`
         : `<header style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; border-bottom: 1px solid #333; padding-bottom: 8px;">
                 <div style="display: flex; align-items: baseline; gap: 8px;">
                     <span style="font-weight: bold; font-size: 1.1em; color: #fff;">${item.name}</span>
-                    <span style="font-size: 0.9em; color: #888;">(x${modelCount})</span>
+                    <span style="font-size: 0.9em; color: #888;">(x${parseModelCount(item.description)})</span>
                 </div>
                 <div style="font-weight: bold; color: var(--accent); white-space: nowrap;">${item.points} pts</div>
            </header>`;
@@ -1710,7 +1753,7 @@ function getCondensedUnitHTML(item, unit, options = {}) {
         weaponsHTML = `<div class="weapons-list">
             ${weapons.map(w => `
                 <div class="weapon-row">
-                    <span class="w-name">${w.name}</span>
+                    <span class="w-name">${w.count ? `<span style="color:var(--accent); font-weight:bold;">${w.count}x</span> ` : ''}${w.name}</span>
                     <span class="w-stats">${w.range} | A:${w.attacks} | BS:${w.skill} | S:${w.strength} | AP:${w.ap} | D:${w.damage}</span>
                 </div>
             `).join('')}
@@ -1733,7 +1776,7 @@ function getCondensedUnitHTML(item, unit, options = {}) {
                     ${weapons.length > 0 ? weapons.map(w => `
                         <tr style="border-bottom:1px solid #333;">
                             <td style="padding:4px; color:#fff;">
-                                <div>${w.name}</div>
+                                <div>${w.count ? `<span style="color:var(--accent); font-weight:bold;">${w.count}x</span> ` : ''}${w.name}</div>
                                 ${w.keywords ? `<div style="font-size:0.8em; color:#888;">${w.keywords}</div>` : ''}
                             </td>
                             <td style="padding:4px; color:#ccc;">${w.range}</td>
@@ -1906,7 +1949,7 @@ function getPlayCardHTML(item, unit, options = {}) {
                         ${activeWeapons.length > 0 ? activeWeapons.map(w => `
                             <tr>
                                 <td>
-                                    <div class="weapon-name">${w.name}</div>
+                                    <div class="weapon-name">${w.count ? `<span style="color:var(--accent); font-weight:bold;">${w.count}x</span> ` : ''}${w.name}</div>
                                     ${w.keywords && w.keywords !== 'undefined' && w.keywords.length > 0 ? `<div class="weapon-keywords">${w.keywords}</div>` : ''}
                                 </td>
                                 <td>${w.range}</td>
@@ -2210,6 +2253,7 @@ tabArmy.addEventListener('click', () => switchTab('army'));
 
 async function toggleCondensedView() {
     state.condensedView = !state.condensedView;
+    state.analysisView = false; // Mutual exclusion
     if (state.condensedView) {
         await renderCondensedArmy();
         document.getElementById('main-content').classList.add('mobile-active');
@@ -2325,3 +2369,618 @@ async function showRulesOverlay() {
 }
 
 init();
+
+// -- Analysis Tools --
+
+function parseDice(str) {
+    if (!str) return 0;
+    const s = str.toString().toLowerCase().trim();
+    if (!isNaN(s)) return parseFloat(s);
+
+    // Handle "D6", "D3"
+    // Heuristic: D6=3.5, D3=2
+    // We handle basic modifiers like "D6+1"
+
+    let base = 0;
+    if (s.includes('d6')) base = 3.5;
+    else if (s.includes('d3')) base = 2;
+    else {
+        // Fallback: try to parse first number
+        const m = s.match(/(\d+)/);
+        return m ? parseFloat(m[1]) : 0;
+    }
+
+    // Check multipliers "2d6"
+    const parts = s.split('d'); // "2", "6+1"
+    if (parts[0] && !isNaN(parts[0])) {
+        base *= parseFloat(parts[0]);
+    }
+
+    // Check modifiers "+1"
+    if (s.includes('+')) {
+        const mod = parseInt(s.split('+')[1]);
+        if (!isNaN(mod)) base += mod;
+    }
+
+    return base;
+}
+
+function parseHitProb(ws) {
+    if (!ws) return 0;
+    const s = ws.toString().trim().toUpperCase();
+    if (s === 'N/A' || s === '-') return 1.0; // Auto-hit
+
+    const match = s.match(/(\d+)/);
+    if (match) {
+        const target = parseInt(match[1]);
+        if (target < 1) return 0; // Invalid
+        // 1 is always fail (technically, though usually 2+) (wait, BS 1+?)
+        // In 40k, 1 is always fail.
+        return (7 - target) / 6;
+    }
+    return 0;
+}
+
+async function toggleAnalysisView() {
+    state.analysisView = !state.analysisView;
+    state.condensedView = false; // Mutually exclusive
+
+    if (state.analysisView) {
+        await renderAnalysisView();
+        document.getElementById('main-content').classList.add('mobile-active');
+        history.pushState({ view: 'details' }, '', '#analysis');
+    } else {
+        datasheetContainer.innerHTML = '<div class="placeholder-message">Select a unit to view its datasheet</div>';
+        document.getElementById('main-content').classList.remove('mobile-active');
+    }
+}
+
+// Global Nav for Analysis
+window.nextUnit = function () {
+    const listLen = state.activeList.units.length;
+    state.analysisUnitIndex++;
+    if (state.analysisUnitIndex >= listLen) state.analysisUnitIndex = -1; // wrap to Total
+    renderAnalysisView();
+};
+
+window.prevUnit = function () {
+    state.analysisUnitIndex--;
+    if (state.analysisUnitIndex < -1) state.analysisUnitIndex = state.activeList.units.length - 1; // wrap to last unit
+    renderAnalysisView();
+};
+
+
+// -- Analysis Helpers --
+
+function normalizeName(str) {
+    if (!str) return '';
+    return str.toLowerCase()
+        .replace(/\([^)]+\)/g, '') // Strip (Melee), (Pistol) etc
+        .replace(/’/g, "'")
+        .replace(/\./g, '')
+        // REMOVED Singularization here. We do it on-demand in matching logic.
+        .trim();
+}
+
+function singularize(str) {
+    if (!str) return '';
+    // Basic singularization for "Sluggas", "Boyz" (handled elsewhere?), etc
+    // Only strip 's' if not 'is'/'ss'
+    return str.replace(/(?<![is])s$/, '');
+}
+
+function parseModelCount(desc) {
+    if (!desc) return 1;
+    // Sum numbers separated by 'and' (e.g. "1 Sergeant and 9 Marines" -> 10)
+    const parts = desc.split(/ and /i);
+    let total = 0;
+    for (const p of parts) {
+        const m = p.trim().match(/^(\d+)/);
+        if (m) total += parseInt(m[1]);
+    }
+    return total > 0 ? total : 1;
+}
+
+// Helper to find specific counts like "4 Lootas" in description "4 Lootas and 1 Spanner"
+// Helper to find specific counts like "4 Lootas" in description "4 Lootas and 1 Spanner"
+function findCountInDescription(subject, unitDesc) {
+    if (!unitDesc) return 1;
+    // Subject is "Spanner" or "Loota" (singular usually in cleanLoadout)
+    // Clean subject
+    const s = subject.replace('every', '').trim();
+    // Regex: Look for number followed by subject
+    // unitDesc: "4 Lootas" vs subject "Loota"
+    // We need fuzzy match for plural? "Loota" matches "Lootas"
+    const regex = new RegExp(`(\\d+)\\s+${s}`, 'i');
+    const match = unitDesc.match(regex);
+    if (match) return parseInt(match[1]);
+
+    return 1;
+}
+
+function resolveLoadoutCounts(unit, selectedWargear, modelCount, unitDescription) {
+    const counts = {};
+    const unitDesc = unitDescription || '';
+
+    // 1. Initial Loadout
+    if (unit.loadout) {
+        // Cleaning: Replace HTML breaks with periods to split sentences
+        let cleanLoadout = unit.loadout
+            .replace(/<br\s*\/?>/gi, '.') // <br> -> .
+            .replace(/<[^>]*>/g, ' ')      // Strip other tags (bold etc) -> space
+            .toLowerCase();
+
+        // Split by sentences to handle mixed loadouts
+        // e.g. "4 Lootas are equipped with: A. 1 Spanner is equipped with: B."
+        const sentences = cleanLoadout.split('.').filter(s => s.trim().length > 0);
+
+        // Pass 1: Parse sentences and calculate initial multipliers
+        const parsedSentences = sentences.map(sentence => {
+            let multiplier = 1;
+            let isCandidateForRemainder = false;
+            const s = sentence.trim();
+
+            if (s.includes('every model') || s.includes('this model is equipped')) {
+                multiplier = modelCount;
+            } else {
+                // Check for explicit numbers at start "4 Lootas are..."
+                const match = s.match(/^(\d+)/);
+                if (match) {
+                    multiplier = parseInt(match[1]);
+                } else {
+                    // Check for "Every [Noun]" pattern matching description
+                    if (s.startsWith('every ')) {
+                        const subjectPart = s.split(' is ')[0];
+                        multiplier = findCountInDescription(subjectPart, unitDesc);
+
+                        // If we returned default 1, this is a candidate for receiving the remainder
+                        // (e.g. "Every Boy" in a "10 models" unit -> returns 1, but should be 9)
+                        // We check if the description *explicitly* said 1. If not, it's a fuzzy default.
+                        if (multiplier === 1) {
+                            isCandidateForRemainder = true;
+                        }
+                    } else if (s.startsWith('the ')) {
+                        // "The Sergeant" -> 1 (usually singular semantic)
+                        multiplier = 1;
+                    }
+                }
+            }
+            return { s, multiplier, isCandidateForRemainder };
+        });
+
+        // Pass 2: Adjust multipliers If total < modelCount
+        // e.g. Nob (1) + Boy (1) = 2. Total 10. Remainder 8. Add to Boy -> 9.
+        const currentSum = parsedSentences.reduce((sum, item) => {
+            // Only count if it's NOT "every model" (which covers everything generally)
+            if (item.s.includes('every model') || item.s.includes('this model is equipped')) return modelCount;
+            return sum + item.multiplier;
+        }, 0);
+
+        console.log('[resolveLoadout] CurrentSum:', currentSum);
+
+        const mc = parseInt(modelCount);
+        const isLess = currentSum < mc;
+
+        if (isLess) {
+            const remainder = mc - currentSum;
+            // Apply to the best "Every X" candidate
+            // Priority 1: Match unit name (Gretchin -> Gretchin)
+            // Priority 2: Last candidate (Usually troops listed last)
+            let candidate = parsedSentences.find(i =>
+                i.isCandidateForRemainder && unit.name && i.s.toLowerCase().includes(normalizeName(unit.name))
+            );
+
+            if (!candidate) {
+                // Fallback to last candidate
+                candidate = parsedSentences.reverse().find(i => i.isCandidateForRemainder);
+                // Reverse back for order preservation if needed (though map creates new array reference usually, reverse mutates... wait, reverse mutates)
+                // actually parsedSentences is a new array. But better to be safe using findLast if environment supports it, or manual search.
+                // JS reverse() mutates. Let's do a safe findLast equivalent.
+            }
+            // Re-find safe fallback without mutation
+            if (!candidate) {
+                const candidates = parsedSentences.filter(i => i.isCandidateForRemainder);
+                if (candidates.length > 0) {
+                    candidate = candidates[candidates.length - 1];
+                }
+            }
+
+            if (candidate) {
+                candidate.multiplier += remainder;
+            }
+        }
+
+        // Pass 3: Process items
+        parsedSentences.forEach(({ s, multiplier }) => {
+            const parts = s.split('equipped with:');
+            if (parts.length > 1) {
+                const itemsStr = parts[1];
+                const items = itemsStr.split(/[;,]/).map(i => i.trim()).filter(i => i);
+
+                items.forEach(item => {
+                    let itemMultiplier = 1;
+                    // Check for "2 rokkit launchas"
+                    const itemMatch = item.match(/^(\d+)\s+(.+)/);
+                    let finalName = item;
+
+                    if (itemMatch) {
+                        itemMultiplier = parseInt(itemMatch[1]);
+                        finalName = itemMatch[2];
+                    }
+
+                    const name = normalizeName(finalName);
+                    counts[name] = (counts[name] || 0) + (multiplier * itemMultiplier);
+                });
+            }
+        });
+    }
+
+    // 2. Apply Wargear
+    if (selectedWargear && selectedWargear.length > 0) {
+        selectedWargear.forEach(wg => {
+            const desc = normalizeName(wg.description);
+            const count = wg.count || 0;
+            if (count <= 0) return;
+
+            // Pattern: "Subject -> Result" (Wahapedia Arrow)
+            if (desc.includes('->')) {
+                const parts = desc.split('->');
+                const target = parts[0].trim();
+                let result = parts[1].trim();
+
+                // Cleanup result quantity: "1 of the following: 1 melta carbine" -> "melta carbine"
+                result = result.replace(/^\d+\s+of\s+the\s+following:\s+/, '');
+                // "1 melta carbine" -> "melta carbine"
+                // Check if result implies multiple? "1 X and 1 Y"
+
+                // Decrement Target
+                decrementFuzzy(counts, target, count);
+
+                // Increment Result
+                // Handle "1 x and 1 y"
+                const addedItems = result.split(/\s+and\s+/).map(s => s.replace(/^\d+\s+/, '').trim());
+                addedItems.forEach(i => {
+                    incrementFuzzy(counts, i, count);
+                });
+            }
+            // Pattern: "Replace X with Y"
+            else {
+                const match = desc.match(/replace (?:its|the|their|that model’s|all of its) (.+?) with (.+?)(?:\.|,|;|$)/);
+                if (match) {
+                    const target = match[1].trim();
+                    const replacement = match[2].trim();
+
+                    decrementFuzzy(counts, target, count);
+                    incrementFuzzy(counts, replacement, count);
+                }
+            }
+        });
+    }
+
+    return counts;
+}
+
+function decrementFuzzy(counts, target, amount) {
+    // Find best match in keys
+    const targetNorm = normalizeName(target);
+    const key = Object.keys(counts).find(k => k.includes(targetNorm) || targetNorm.includes(k));
+    if (key) {
+        counts[key] = Math.max(0, counts[key] - amount);
+    }
+}
+
+function incrementFuzzy(counts, target, amount) {
+    const targetNorm = normalizeName(target);
+    // Try to find existing key to coalesce, otherwise new
+    const key = Object.keys(counts).find(k => k === targetNorm); // Strict equality for addition? Or fuzzy?
+    // Better to use strict or normalized equality to avoid merging distinct guns
+    if (key) {
+        counts[key] += amount;
+    } else {
+        counts[targetNorm] = amount;
+    }
+}
+
+
+async function renderAnalysisView() {
+    datasheetContainer.innerHTML = '<div class="loading">Calculating battle stats...</div>';
+
+    try {
+        const units = state.activeList.units;
+        if (units.length === 0) {
+            datasheetContainer.innerHTML = '<div class="placeholder-message">Your army is empty!</div>';
+            return;
+        }
+
+        const promises = units.map(item => dbClient.getUnitDetails(item.unitId));
+        const fullUnits = await Promise.all(promises);
+
+        let totalArmyWounds = 0;
+        let totalPotDmg = 0;
+        let totalAvgDmg = 0;
+        let totalArmyPoints = 0;
+
+        // Per-unit stats
+        const unitStats = units.map((item, i) => {
+            const unit = fullUnits[i];
+
+            // Model Count
+            const modelCount = parseModelCount(item.description);
+
+            // 1. Resolve Weapon Counts
+            const weaponCounts = resolveLoadoutCounts(unit, item.wargear, modelCount, item.description);
+
+            // Wounds
+            const wStr = (unit.models[0]?.w || '0').toString();
+            const wPerModel = parseInt(wStr) || 1;
+            const unitWounds = modelCount * wPerModel;
+            totalArmyWounds += unitWounds;
+            totalArmyPoints += (item.points || 0);
+
+            // Calculate Damage
+            let unitPotDmg = 0;
+            let unitAvgDmg = 0;
+
+            // We iterate over the RESOLVED counts
+            // But we need the weapon PROFILES from the DB (`unit.weapons`)
+            // map weaponCounts keys to DB profiles
+
+            Object.keys(weaponCounts).forEach(wName => {
+                const count = weaponCounts[wName];
+                if (count <= 0) return;
+
+                // Find profile
+                // Need fuzzy match again against unit.weapons
+                // Find profile
+                // Improved fuzzy match: Prioritize exact matches and closest length
+                const candidates = unit.weapons.filter(w => {
+                    const dbName = normalizeName(w.name);
+                    return dbName.includes(wName) || wName.includes(dbName);
+                });
+
+                candidates.sort((a, b) => {
+                    const dbA = normalizeName(a.name);
+                    const dbB = normalizeName(b.name);
+                    const exactA = dbA === wName;
+                    const exactB = dbB === wName;
+                    if (exactA && !exactB) return -1;
+                    if (!exactA && exactB) return 1;
+                    const diffA = Math.abs(dbA.length - wName.length);
+                    const diffB = Math.abs(dbB.length - wName.length);
+                    return diffA - diffB;
+                });
+
+                const profile = candidates[0];
+
+                if (profile) {
+                    const attacks = parseDice(profile.attacks || profile.a);
+                    const damage = parseDice(profile.damage || profile.d);
+                    const skill = profile.skill || profile.bs || profile.ws;
+                    const prob = parseHitProb(skill);
+
+                    const pot = attacks * damage * count;
+                    const avg = pot * prob;
+
+                    unitPotDmg += pot;
+                    unitAvgDmg += avg;
+                }
+            });
+
+            totalPotDmg += unitPotDmg;
+            totalAvgDmg += unitAvgDmg;
+
+            // Prepare for Mathhammer
+            const mathhammerWeapons = [];
+            Object.keys(weaponCounts).forEach(wName => {
+                const count = weaponCounts[wName];
+                if (count <= 0) return;
+                const candidates = unit.weapons.filter(w => {
+                    const dbName = normalizeName(w.name);
+                    return dbName.includes(wName) || wName.includes(dbName);
+                });
+
+                candidates.sort((a, b) => {
+                    const dbA = normalizeName(a.name);
+                    const dbB = normalizeName(b.name);
+                    const exactA = dbA === wName;
+                    const exactB = dbB === wName;
+                    if (exactA && !exactB) return -1;
+                    if (!exactA && exactB) return 1;
+                    const diffA = Math.abs(dbA.length - wName.length);
+                    const diffB = Math.abs(dbB.length - wName.length);
+                    return diffA - diffB;
+                });
+
+                const best = candidates[0];
+                if (best) {
+                    // Logic to include siblings (e.g. Strike/Sweep profiles)
+                    // If the best match has a dash, other candidates with the same base name should be included.
+                    // Split regex same as mathhammer.js: /\s+[–-]\s+/
+                    const splitRegex = /\s+[–-]\s+/;
+                    const bestBase = best.name.split(splitRegex)[0].trim().toLowerCase();
+
+                    // Always add the best one
+                    mathhammerWeapons.push({ ...best, count });
+
+                    // Check other candidates
+                    for (let i = 1; i < candidates.length; i++) {
+                        const cand = candidates[i];
+                        const candBase = cand.name.split(splitRegex)[0].trim().toLowerCase();
+
+                        // If they share the base name (meaning they are profiles of the same weapon)
+                        // AND they are not the same exact item (handled by i=1 start)
+                        if (candBase === bestBase) {
+                            mathhammerWeapons.push({ ...cand, count });
+                        }
+                    }
+                }
+            });
+
+            return {
+                name: item.name,
+                wounds: unitWounds,
+                potDmg: unitPotDmg,
+                avgDmg: unitAvgDmg,
+                modelCount,
+                mathhammerWeapons // Attach for Aggregator
+            };
+        });
+
+        const html = `
+            <div class="analysis-view animate-fade-in" style="padding: 20px;">
+                <h2 style="margin-bottom: 20px; border-bottom: 1px solid #444; padding-bottom: 10px; color:var(--accent);">Army Analysis</h2>
+                
+                <div class="stats-summary-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 30px;">
+                    <div class="stat-card" style="background:#222; padding:15px; border-radius:6px; border:1px solid #444; text-align:center;">
+                        <div style="font-size:0.9em; color:#aaa; text-transform:uppercase;">Total Wounds</div>
+                        <div style="font-size:2em; font-weight:bold; color:#fff;">${totalArmyWounds}</div>
+                    </div>
+                    <div class="stat-card" style="background:#222; padding:15px; border-radius:6px; border:1px solid #444; text-align:center;">
+                        <div style="font-size:0.9em; color:#aaa; text-transform:uppercase;">Potential Damage</div>
+                        <div style="font-size:2em; font-weight:bold; color:#fff;">${totalPotDmg.toFixed(1)}</div>
+                        <div style="font-size:0.7em; color:#666;">(Max hits * Max dmg)</div>
+                    </div>
+                    <div class="stat-card" style="background:#222; padding:15px; border-radius:6px; border:1px solid #444; text-align:center;">
+                        <div style="font-size:0.9em; color:#aaa; text-transform:uppercase;">Average Output</div>
+                        <div style="font-size:2em; font-weight:bold; color:var(--accent);">${totalAvgDmg.toFixed(1)}</div>
+                        <div style="font-size:0.7em; color:#666;">(Adjusted for BS/WS)</div>
+                    </div>
+                </div>
+
+                <!-- Mathhammer Analysis (New) -->
+                ${(() => {
+                const fullArmyComposition = unitStats.map(u => ({
+                    name: u.name,
+                    weapons: u.mathhammerWeapons || []
+                }));
+
+                // Filter based on selection
+                let targetComposition = fullArmyComposition;
+                let title = "Army Total";
+                let navControls = `
+                        <button onclick="window.prevUnit()" style="background:none; border:none; color:var(--accent); cursor:pointer; font-size:1.2em;">&larr;</button>
+                        <span style="color:#fff; min-width:150px; text-align:center;">${title}</span>
+                        <button onclick="window.nextUnit()" style="background:none; border:none; color:var(--accent); cursor:pointer; font-size:1.2em;">&rarr;</button>
+                    `;
+
+                if (state.analysisUnitIndex >= 0 && state.analysisUnitIndex < fullArmyComposition.length) {
+                    targetComposition = [fullArmyComposition[state.analysisUnitIndex]];
+                    title = fullArmyComposition[state.analysisUnitIndex].name;
+                    navControls = `
+                        <button onclick="window.prevUnit()" style="background:none; border:none; color:var(--accent); cursor:pointer; font-size:1.2em;">&larr;</button>
+                        <span style="color:#fff; min-width:150px; text-align:center;">${title}</span>
+                        <button onclick="window.nextUnit()" style="background:none; border:none; color:var(--accent); cursor:pointer; font-size:1.2em;">&rarr;</button>
+                        `;
+                } else {
+                    // Ensure index reset if out of bounds (safe fallback)
+                    state.analysisUnitIndex = -1;
+                }
+
+                const matchups = calculateArmyMatchups(targetComposition);
+
+                return `
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:30px; margin-bottom:15px;">
+                        <h3 style="margin:0; color: #fff;">Damage vs Archetypes</h3>
+                        <div style="display:flex; align-items:center; gap:10px; background:#222; padding:5px 15px; border-radius:20px; border:1px solid #444;">
+                            ${navControls}
+                        </div>
+                    </div>
+                    
+                    <div style="overflow-x:auto; margin-bottom: 30px;">
+                        <table style="width:100%; border-collapse: collapse; font-size: 0.9em; border: 1px solid #444;">
+                            <thead>
+                                <tr style="background: #333; color: #aaa;">
+                                    <th style="padding: 10px; text-align: left;">Defensive Profile</th>
+                                    <th style="padding: 10px; text-align: right;">Melee output</th>
+                                    <th style="padding: 10px; text-align: right;">Ranged output</th>
+                                    <th style="padding: 10px; text-align: right;">Total Damage</th>
+                                    <th style="padding: 10px; text-align: right;">Efficiency (Dmg/Pt)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${matchups.map(m => {
+                    // Calc Efficiency using Points
+                    let pointsBase = totalArmyPoints || 1;
+                    if (state.analysisUnitIndex >= 0) {
+                        const u = units[state.analysisUnitIndex];
+                        pointsBase = u.points || 1;
+                    }
+                    const eff = (m.totalDamage / pointsBase).toFixed(3);
+
+                    const melee = m.split ? m.split.melee : { damage: 0, slain: 0 };
+                    const ranged = m.split ? m.split.ranged : { damage: 0, slain: 0 };
+
+                    return `
+                                    <tr style="border-bottom: 1px solid #333;">
+                                        <td style="padding: 10px;">
+                                            <strong style="color: #fff;">${m.profile.name}</strong>
+                                            <div style="font-size:0.8em; color:#888;">${m.profile.desc}</div>
+                                        </td>
+                                        <td style="padding: 10px; text-align: right; color: #ccc; vertical-align: top;">
+                                            <div>${melee.damage.toFixed(1)} dmg</div>
+                                            <div style="font-size:0.8em; color:#666;">${melee.slain.toFixed(1)} slain</div>
+                                            ${melee.names && melee.names.length > 0 ?
+                            `<div style="font-size:0.7em; color:#555; margin-top:4px; font-style:italic;">${melee.names.join(', ')}</div>`
+                            : ''}
+                                        </td>
+                                        <td style="padding: 10px; text-align: right; color: #ccc; vertical-align: top;">
+                                            <div>${ranged.damage.toFixed(1)} dmg</div>
+                                            <div style="font-size:0.8em; color:#666;">${ranged.slain.toFixed(1)} slain</div>
+                                            ${ranged.names && ranged.names.length > 0 ?
+                            `<div style="font-size:0.7em; color:#555; margin-top:4px; font-style:italic;">${ranged.names.join(', ')}</div>`
+                            : ''}
+                                        </td>
+                                        <td style="padding: 10px; text-align: right; color: var(--accent); font-weight: bold; font-size: 1.1em;">
+                                            ${m.totalDamage.toFixed(1)} 
+                                            <div style="font-size:0.6em; color:#aaa; font-weight:normal;">(${m.totalModelsSlain.toFixed(1)} slain)</div>
+                                        </td>
+                                        <td style="padding: 10px; text-align: right; color: #888;">${eff}</td>
+                                    </tr>
+                                    `;
+                }).join('')}
+                            </tbody>
+                        </table>
+                        <div style="font-size: 0.8em; color: #666; margin-top: 5px; font-style: italic;">
+                            * Assuming standard Hit/Wound probabilities. Keywords like Lethal/Sustained Hits/Devastating Wounds included.
+                        </div>
+                    </div>
+                    `;
+            })()}
+
+                <h3 style="margin-bottom: 15px;">Unit Breakdown</h3>
+                <div style="overflow-x:auto;">
+                    <table style="width:100%; border-collapse: collapse; font-size: 0.9em;">
+                        <thead>
+                            <tr style="border-bottom: 2px solid #444; text-align: left; color: #aaa;">
+                                <th style="padding: 8px;">Unit</th>
+                                <th style="padding: 8px; text-align: right;">Wounds</th>
+                                <th style="padding: 8px; text-align: right;">Pot. Dmg</th>
+                                <th style="padding: 8px; text-align: right;">Avg. Output</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${unitStats.map(u => `
+                                <tr style="border-bottom: 1px solid #333;">
+                                    <td style="padding: 8px; color: #fff;">
+                                        ${u.name} <span style="color:#666; font-size:0.85em;">(x${u.modelCount})</span>
+                                    </td>
+                                    <td style="padding: 8px; text-align: right; color: #ccc;">${u.wounds}</td>
+                                    <td style="padding: 8px; text-align: right; color: #ccc;">${u.potDmg.toFixed(1)}</td>
+                                    <td style="padding: 8px; text-align: right; color: var(--accent); font-weight: bold;">${u.avgDmg.toFixed(1)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+
+        datasheetContainer.innerHTML = html;
+
+    } catch (err) {
+        console.error('Error rendering analysis:', err);
+        datasheetContainer.innerHTML = '<div class="error">Failed to calculate stats.</div>';
+    }
+}
+
+window.toggleAnalysisView = toggleAnalysisView;
