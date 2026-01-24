@@ -87,7 +87,11 @@
             <div class="lists-section">
                 <div class="section-header">
                     <h2>My Army Lists</h2>
-                    <button id="btn-create-list" class="btn-primary">+ New List</button>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="file" id="file-import-lists" accept=".json" style="display: none;">
+                        <button id="btn-import-lists" class="btn-secondary" title="Import Lists">⬆ Import</button>
+                        <button id="btn-create-list" class="btn-primary">+ New List</button>
+                    </div>
                 </div>
                 <div id="lists-container" class="lists-grid">
                     <!-- Populated by JS -->

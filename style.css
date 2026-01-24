@@ -794,7 +794,10 @@ details[open]>.play-ability-header::before {
     font-size: 1.2rem;
 }
 
-.btn-icon {
+.btn-rename-list,
+.btn-duplicate-list,
+.btn-export-list,
+.btn-delete-list {
     background: transparent;
     border: 1px solid transparent;
     color: #888;
@@ -982,7 +985,7 @@ details[open]>.play-ability-header::before {
 .btn-rename-list {
     position: absolute;
     top: 10px;
-    right: 70px;
+    right: 100px;
     background: transparent;
     border: none;
     color: #444;
@@ -1002,17 +1005,34 @@ details[open]>.play-ability-header::before {
     position: absolute;
     top: 10px;
     right: 40px;
-    /* Positioned to the left of the delete button */
     background: transparent;
     border: none;
     color: #444;
     font-size: 1.2rem;
-    /* Slightly smaller than the X */
     line-height: 1;
     cursor: pointer;
     padding: 0 5px;
     transition: color 0.2s;
     border-radius: 4px;
+}
+
+.btn-export-list {
+    position: absolute;
+    top: 10px;
+    right: 70px;
+    background: transparent;
+    border: none;
+    color: #444;
+    font-size: 1.2rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 5px;
+    transition: color 0.2s;
+    border-radius: 4px;
+}
+
+.btn-export-list:hover {
+    color: var(--accent);
 }
 
 .btn-duplicate-list:hover {

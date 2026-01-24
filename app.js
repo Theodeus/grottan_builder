@@ -176,6 +176,19 @@ async function init() {
     document.getElementById('btn-cancel-create').onclick = () => hideCreateModal();
     document.getElementById('btn-confirm-create').onclick = () => createNewList();
 
+    // Import Listeners
+    const btnImport = document.getElementById('btn-import-lists');
+    const fileImport = document.getElementById('file-import-lists');
+    if (btnImport && fileImport) {
+        btnImport.onclick = () => fileImport.click();
+        fileImport.onchange = (e) => {
+            if (e.target.files.length > 0) {
+                importLists(e.target.files[0]);
+                e.target.value = ''; // Reset
+            }
+        };
+    }
+
     document.getElementById('new-list-faction').onchange = (e) => {
         toggleCustomUrl(e.target.value);
         toggleChapterSelect(e.target.value);
@@ -316,6 +329,68 @@ function saveListsToStorage() {
     localStorage.setItem('armyLists', JSON.stringify(state.lists));
 }
 
+// -- Import / Export --
+
+function exportList(listId) {
+    const list = state.lists.find(l => l.id === listId);
+    if (!list) return;
+
+    // Use Blob instead of Data URI for better reliability
+    const jsonStr = JSON.stringify(list, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", url);
+    downloadAnchorNode.setAttribute("download", `${list.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.json`);
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+    URL.revokeObjectURL(url); // Clean up
+}
+
+function importLists(file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const json = JSON.parse(e.target.result);
+            let importedLists = [];
+
+            // Support both Single List object and Array of Lists
+            if (Array.isArray(json)) {
+                importedLists = json;
+            } else if (typeof json === 'object' && json !== null) {
+                // Validate minimal structure (has at least units array?)
+                // Or just assume it is a list
+                importedLists = [json];
+            } else {
+                throw new Error("Invalid JSON structure");
+            }
+
+            let importCount = 0;
+            importedLists.forEach(l => {
+                // Create New ID to avoid collision
+                const newList = { ...l };
+                newList.id = Date.now().toString() + Math.floor(Math.random() * 1000);
+                newList.name = newList.name || "Imported List";
+
+                // Ensure it doesn't conflict logic-wise? No, unrelated ID is fine.
+                state.lists.push(newList);
+                importCount++;
+            });
+
+            saveListsToStorage();
+            renderLandingPage();
+            showToast(`Imported ${importCount} list(s)`, 'success');
+
+        } catch (err) {
+            console.error(err);
+            showToast('Failed to import lists: Invalid File', 'error');
+        }
+    };
+    reader.readAsText(file);
+}
+
 // -- Landing Page Logic --
 
 function renderLandingPage() {
@@ -341,9 +416,9 @@ function renderLandingPage() {
                 <span>${list.units.length} Units</span>
                 <span>${totalPoints} pts</span>
             </div>
-            </div>
             <button class="btn-rename-list" title="Rename List">✎</button>
             <button class="btn-duplicate-list" title="Duplicate List">⧉</button>
+            <button class="btn-export-list" title="Export List">⬇</button>
             <button class="btn-delete-list" title="Delete List">×</button>
         `;
 
@@ -352,6 +427,7 @@ function renderLandingPage() {
             if (e.target.classList.contains('btn-delete-list')) return;
             if (e.target.classList.contains('btn-duplicate-list')) return;
             if (e.target.classList.contains('btn-rename-list')) return;
+            if (e.target.classList.contains('btn-export-list')) return;
             openBuilder(list.id);
         };
 
@@ -361,10 +437,15 @@ function renderLandingPage() {
             openRenameModal(list.id);
         };
 
-        // Duplicate List
         card.querySelector('.btn-duplicate-list').onclick = (e) => {
             e.stopPropagation();
             duplicateList(list.id);
+        };
+
+        // Export List
+        card.querySelector('.btn-export-list').onclick = (e) => {
+            e.stopPropagation();
+            exportList(list.id);
         };
 
         // Delete List
@@ -2891,8 +2972,10 @@ async function renderAnalysisView() {
                             <thead>
                                 <tr style="background: #333; color: #aaa;">
                                     <th style="padding: 10px; text-align: left;">Defensive Profile</th>
-                                    <th style="padding: 10px; text-align: right;">Melee output</th>
-                                    <th style="padding: 10px; text-align: right;">Ranged output</th>
+                                    <th style="padding: 10px; text-align: right;">Melee Hits</th>
+                                    <th style="padding: 10px; text-align: right;">Melee Output</th>
+                                    <th style="padding: 10px; text-align: right;">Ranged Hits</th>
+                                    <th style="padding: 10px; text-align: right;">Ranged Output</th>
                                     <th style="padding: 10px; text-align: right;">Total Damage</th>
                                     <th style="padding: 10px; text-align: right;">Efficiency (Dmg/Pt)</th>
                                 </tr>
@@ -2907,8 +2990,8 @@ async function renderAnalysisView() {
                     }
                     const eff = (m.totalDamage / pointsBase).toFixed(3);
 
-                    const melee = m.split ? m.split.melee : { damage: 0, slain: 0 };
-                    const ranged = m.split ? m.split.ranged : { damage: 0, slain: 0 };
+                    const melee = m.split ? m.split.melee : { damage: 0, slain: 0, hits: 0 };
+                    const ranged = m.split ? m.split.ranged : { damage: 0, slain: 0, hits: 0 };
 
                     return `
                                     <tr style="border-bottom: 1px solid #333;">
@@ -2917,16 +3000,22 @@ async function renderAnalysisView() {
                                             <div style="font-size:0.8em; color:#888;">${m.profile.desc}</div>
                                         </td>
                                         <td style="padding: 10px; text-align: right; color: #ccc; vertical-align: top;">
+                                            <div>${melee.hits.toFixed(1)}</div>
+                                        </td>
+                                        <td style="padding: 10px; text-align: right; color: #ccc; vertical-align: top;">
                                             <div>${melee.damage.toFixed(1)} dmg</div>
                                             <div style="font-size:0.8em; color:#666;">${melee.slain.toFixed(1)} slain</div>
-                                            ${melee.names && melee.names.length > 0 ?
+                                            ${state.analysisUnitIndex >= 0 && melee.names && melee.names.length > 0 ?
                             `<div style="font-size:0.7em; color:#555; margin-top:4px; font-style:italic;">${melee.names.join(', ')}</div>`
                             : ''}
                                         </td>
                                         <td style="padding: 10px; text-align: right; color: #ccc; vertical-align: top;">
+                                            <div>${ranged.hits.toFixed(1)}</div>
+                                        </td>
+                                        <td style="padding: 10px; text-align: right; color: #ccc; vertical-align: top;">
                                             <div>${ranged.damage.toFixed(1)} dmg</div>
                                             <div style="font-size:0.8em; color:#666;">${ranged.slain.toFixed(1)} slain</div>
-                                            ${ranged.names && ranged.names.length > 0 ?
+                                            ${state.analysisUnitIndex >= 0 && ranged.names && ranged.names.length > 0 ?
                             `<div style="font-size:0.7em; color:#555; margin-top:4px; font-style:italic;">${ranged.names.join(', ')}</div>`
                             : ''}
                                         </td>

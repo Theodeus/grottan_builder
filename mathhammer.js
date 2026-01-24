@@ -255,32 +255,25 @@ export function calculateArmyMatchups(unitStats) {
         // New Split Stats
         let totalMeleeDamage = 0;
         let totalMeleeSlain = 0;
+        let totalMeleeHits = 0;
         let totalMeleeNames = [];
 
         let totalRangedDamage = 0;
         let totalRangedSlain = 0;
+        let totalRangedHits = 0;
         let totalRangedNames = [];
 
         unitStats.forEach(unit => {
             // Per-Unit Accumulators
-            let unitMelee = { damage: 0, modelsSlain: 0, names: [] };
-            let unitRanged = { damage: 0, modelsSlain: 0, names: [] };
-            let unitPistol = { damage: 0, modelsSlain: 0, names: [] };
+            let unitMelee = { damage: 0, modelsSlain: 0, hits: 0, names: [] };
+            let unitRanged = { damage: 0, modelsSlain: 0, hits: 0, names: [] };
+            let unitPistol = { damage: 0, modelsSlain: 0, hits: 0, names: [] };
 
             // Group weapons by Base Name to handle profiles (Strike/Sweep)
             const weaponGroups = {};
 
             unit.weapons.forEach(weapon => {
                 // Heuristic: Split by " – " (En dash) or " - " (Hyphen)
-                // Also handle cases without surrounding spaces if necessary, but usually there are spaces.
-                // Regex: Space? Set(–, -) Space?
-                // Actually, often it's "Name - Profile" or "Name – Profile"
-                // Let's use a safer regex: /\s+[–-]\s+/
-                // And also handle the case where it might just be a dash? No, that risks splitting compound words.
-                // Comparison: Wahapedia usually uses " – " (En dash) with spaces.
-                // But the user might see " - " or the data import might have normalized it.
-
-                // Let's try splitting by the specific separators we expect.
                 const baseName = weapon.name.split(/\s+[–-]\s+/)[0].trim();
 
                 if (!weaponGroups[baseName]) weaponGroups[baseName] = [];
@@ -303,43 +296,53 @@ export function calculateArmyMatchups(unitStats) {
                         dmg: result.damage * count,
                         unsaved: result.unsaved * count,
                         modelsSlain: result.modelsSlain * count,
+                        hits: result.hits * count,
                         type: type,
                         isPistol: isPistol,
                         name: weapon.name
                     };
                 });
 
-                // Find max damage (Assumption: Always use optimal profile)
-                // Find max modelsSlain (Smart Selection: Optimize for Dead Models)
-                // Use Models Slain as primary metric, Damage as tiebreaker
-                const best = results.reduce((max, current) => {
-                    // Precision for float comparison
-                    if (Math.abs(current.modelsSlain - max.modelsSlain) > 0.1) {
-                        return current.modelsSlain > max.modelsSlain ? current : max;
-                    }
-                    return current.dmg > max.dmg ? current : max;
-                }, { dmg: -1, unsaved: 0, modelsSlain: -1, type: 'Unknown', isPistol: false });
+                // Split into Melee and Ranged candidates
+                // Melee and Ranged are additive (used in different phases), so we shouldn't force a choice between them.
+                // However, profiles WITHIN a category (e.g. Strike vs Sweep) ARE mutually exclusive.
+                const meleeCandidates = results.filter(r => r.type === 'Melee');
+                const rangedCandidates = results.filter(r => r.type !== 'Melee');
 
-                if (best.dmg >= 0) {
-                    // Categorize the BEST profile
-                    const firstWeapon = group[0]; // Access original weapon for keywords if needed, but 'best' should carry it?
-                    // We need to know if the selected profile is Melee or Pistol
-                    // Let's pass that info through 'results'
+                const processCandidates = (candidates) => {
+                    if (candidates.length === 0) return;
 
-                    if (best.type === 'Melee') {
-                        unitMelee.damage += best.dmg;
-                        unitMelee.modelsSlain += best.modelsSlain;
-                        unitMelee.names.push(best.name);
-                    } else if (best.isPistol) {
-                        unitPistol.damage += best.dmg;
-                        unitPistol.modelsSlain += best.modelsSlain;
-                        unitPistol.names.push(best.name);
-                    } else {
-                        unitRanged.damage += best.dmg;
-                        unitRanged.modelsSlain += best.modelsSlain;
-                        unitRanged.names.push(best.name);
+                    // Find max damage/slain
+                    const best = candidates.reduce((max, current) => {
+                        // Precision for float comparison
+                        if (Math.abs(current.modelsSlain - max.modelsSlain) > 0.1) {
+                            return current.modelsSlain > max.modelsSlain ? current : max;
+                        }
+                        return current.dmg > max.dmg ? current : max;
+                    }, { dmg: -1, unsaved: 0, modelsSlain: -1, hits: 0, type: 'Unknown', isPistol: false });
+
+                    if (best.dmg >= 0) {
+                        if (best.type === 'Melee') {
+                            unitMelee.damage += best.dmg;
+                            unitMelee.modelsSlain += best.modelsSlain;
+                            unitMelee.hits += best.hits;
+                            unitMelee.names.push(best.name);
+                        } else if (best.isPistol) {
+                            unitPistol.damage += best.dmg;
+                            unitPistol.modelsSlain += best.modelsSlain;
+                            unitPistol.hits += best.hits;
+                            unitPistol.names.push(best.name);
+                        } else {
+                            unitRanged.damage += best.dmg;
+                            unitRanged.modelsSlain += best.modelsSlain;
+                            unitRanged.hits += best.hits;
+                            unitRanged.names.push(best.name);
+                        }
                     }
-                }
+                };
+
+                processCandidates(meleeCandidates);
+                processCandidates(rangedCandidates);
             });
 
             // Resolve Ranged (Pistol vs Other)
@@ -350,10 +353,12 @@ export function calculateArmyMatchups(unitStats) {
 
             totalMeleeDamage += unitMelee.damage;
             totalMeleeSlain += unitMelee.modelsSlain;
+            totalMeleeHits += unitMelee.hits;
             totalMeleeNames.push(...unitMelee.names);
 
             totalRangedDamage += finalRanged.damage;
             totalRangedSlain += finalRanged.modelsSlain;
+            totalRangedHits += finalRanged.hits;
             totalRangedNames.push(...finalRanged.names);
 
             totalDamage += (unitMelee.damage + finalRanged.damage);
@@ -366,8 +371,8 @@ export function calculateArmyMatchups(unitStats) {
             totalDamage: totalDamage,
             totalModelsSlain: totalModelsSlain,
             split: {
-                melee: { damage: totalMeleeDamage, slain: totalMeleeSlain, names: [...new Set(totalMeleeNames)] },
-                ranged: { damage: totalRangedDamage, slain: totalRangedSlain, names: [...new Set(totalRangedNames)] }
+                melee: { damage: totalMeleeDamage, slain: totalMeleeSlain, hits: totalMeleeHits, names: [...new Set(totalMeleeNames)] },
+                ranged: { damage: totalRangedDamage, slain: totalRangedSlain, hits: totalRangedHits, names: [...new Set(totalRangedNames)] }
             }
         };
     });
